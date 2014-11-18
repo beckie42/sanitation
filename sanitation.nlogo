@@ -6,10 +6,9 @@ people-own [
   resources
   similar
   happy?
-  elevation-desire
+  health-desire
   status-desire
-  elevation-seeker?
-  elevation-liker?
+  health-seeker?
   resources-sign
   high-status?
 ]
@@ -18,13 +17,14 @@ patches-own [
   status
   elev-status
   available?
+  improved?
 ]
 
 globals [
   equilibrium?
   moves
   recent-happiness
-  recording?
+  gif?
   start-happy
   end-happy
   goal-y
@@ -34,27 +34,21 @@ globals [
 ]
 
 to setup
+  set gif? False
   clear-all
   setup-people-random
   update-patches
   update-people
-  set equilibrium? False
-  set recent-happiness (list count people with [happy? = True])
   reset-ticks
-  export-view (word "status-affinity" (word ticks ".png"))
 end
 
 to go
-  if equilibrium? [ stop ]
-  if ticks = 101 [ stop ]
-  set start-happy count people with [happy? = True]
   move-unhappy-people
   update-people
   update-patches
-  set end-happy count people with [happy? = True]
-;  update-equilibrium
   tick
-  export-view (word "status-affinity" (word ticks ".png"))
+  if gif? = True
+    [ export-view (word "sanitation" (word ticks ".png")) ]
 end
 
 to setup-people-random
@@ -66,23 +60,14 @@ to setup-people-random
       ifelse resources >= 0
         [ set resources-sign "+" ]
         [ set resources-sign "-" ]
-      set elevation-desire random-normal 30 20
+      set health-desire random-normal 30 20
       set status-desire random-normal 50 10
-      ifelse elevation-desire > (z-elevation-seekers * 20 + 30)
-        [ set elevation-seeker? True
+      ifelse health-desire > (z-health-seekers * 20 + 30)
+        [ set health-seeker? True
           set shape "triangle" 
           ]
-        [ set elevation-seeker? False
-          ifelse elevation-desire > (z-elevation-likers * 20 + 30)
-            [ set elevation-liker? True
-              set shape "pentagon" 
-              ]
-            [ set elevation-liker? False ]
-        ]
+        [ set health-seeker? False ]
        
-;      ifelse resources >= 0
-;        [ set color green ]
-;        [ set color red ])
       let c (resources + 75) / 150
       if c != 1 and c != 0 and c != 0.5 and c > 0 and c < 1
         [ ifelse c > 0.5
@@ -97,32 +82,16 @@ to setup-people-random
   ]
 end
 
-;to setup-people-segregated
-;  ask patches with [pxcor < 0] [sprout-people 1 
-;    [
-;      set shape "circle"
-;      set resources min (list (random-normal 0 20) -0.00000000001)
-;      ifelse resources >= 0
-;        [ set color green ]
-;        [ set color red ]
-;    ]
-;  ]
-;  ask patches with [pxcor >= 0] [sprout-people 1 
-;    [
-;      set shape "person"
-;      set resources max (list (random-normal 0 20) 0)
-;      ifelse resources >= 0
-;        [ set color green ]
-;        [ set color red ]
-;    ]
-;  ]
-;end
-
 to update-patches
   ask patches [
     let statusref [resources] of turtles-here
     let neighbours (turtles-on neighbors)
     set status (mean [resources] of neighbours)
+    
+    ifelse status > cost-threshold and count neighbours with [health-seeker? = True] >= activist-threshold
+      [ set improved? True
+        set pcolor green ]
+      [ set improved? False ]
   ]
 end
   
@@ -138,84 +107,18 @@ to update-people
   let hspeople people with [high-status? = True]
   let non-hspeople people with [high-status? = False]
   
-  let ctest correlation hspeople non-hspeople "y" 
-  ifelse ctest != False
-    [ set correlation-y? True 
-      set goal-y ctest ]
-    [ set correlation-y? False ]
-;  ifelse correlation hspeople non-hspeople "x"
-;    [ set correlation-x? True 
-;      set goal-x mean [pxcor] of hspeople ]
-;    [ set correlation-x? False ]
-
   ask people [
-    ifelse patchranking = "status-associated"
-      [ ifelse elevation-seeker?
-        [ let p ((pycor + max-pycor) / world-height) * (el-ceiling - el-floor) + el-floor
-          ifelse (p * [status] of patch-here) >= resources
-          [ set happy? True ]
-          [ set happy? False ]
-        ]
-        [ ifelse correlation-y?
-          [ let p ((abs (pycor - goal-y)) / world-height * (hs-c - hs-f) + hs-f)
-            ifelse p * [status] of patch-here >= resources
-            [ set happy? True ]
-            [ set happy? False ] ]
-          [ ifelse [status] of patch-here >= resources 
-            [ set happy? True ]
-            [ set happy? False ] ]
-        ]
-      ]
-      [ ifelse elevation-seeker?
-        [ let p ((pycor + max-pycor) / world-height) * (el-ceiling - el-floor) + el-floor
-          ifelse (p * [status] of patch-here) >= resources
-          [ set happy? True ]
-          [ set happy? False ]
-        ]
-        [ ifelse elevation-liker?
-          [ let p ((pycor + max-pycor) / world-height) * (c2 - f2) + f2
-            ifelse (p * [status] of patch-here) >= resources
-              [ set happy? True ]
-              [ set happy? False ]
-          ]
-          [ ifelse [status] of patch-here >= resources
-            [ set happy? True ]
-            [ set happy? False ] 
-          ]
-        ]
-      ]
-    
-    update-similar
+    ifelse health-seeker?
+    [ ifelse [improved?] of patch-here = True and [status] of patch-here >= resources
+      [ set happy? True ]
+      [ set happy? False ]
+    ]
+    [ ifelse [status] of patch-here >= resources
+      [ set happy? True ]
+      [ set happy? False ] 
+    ]
   ]
-end
-
-to-report correlation [ingroup outgroup direction]
-;  let m1 0
-;  let m2 0
-;  if direction = "y"
-;    [ set m1 mean [pycor] of ingroup
-;      set m2 mean [pycor] of outgroup ]
-;  if direction = "x"
-;    [ set m1 mean [pxcor] of ingroup
-;      set m2 mean [pxcor] of outgroup ]
-;  ifelse abs (m1 - m2) > hs-diff
-;    [ report True ]
-;    [ report False ]
-
-  let rowmean []
-  foreach n-values world-height [min-pycor + ?]
-    [ set rowmean sentence rowmean (mean [resources] of people with [pycor = ?]) ]
-  let maxrows []
-  let wrowmean rowmean
-  while [length maxrows < 3]
-    [ let m max wrowmean
-      set maxrows sentence maxrows (position m rowmean)
-      set wrowmean remove m wrowmean 
-      ]
-  ifelse max maxrows - min maxrows = 2
-    [ report median maxrows - max-pycor ]
-    [ report False ]
-      
+  
 end
 
 to move-unhappy-people
@@ -228,69 +131,27 @@ to move-unhappy-people
     [ set availablepatches patches ]
     [ set availablepatches patches with [available? = True] ]
   
-  ifelse choose-partner = "free"
-    [ set unhappypeople [self] of unhappypeople ]
-    [ set unhappypeople sort-on [(- resources)] unhappypeople ]
-    
-  let elrankedpatches sort-by 
-    [ ([pycor] of ?1 > [pycor] of ?2) or 
-      ([pycor] of ?1 = [pycor] of ?2 and [status] of ?1 > [status] of ?2) ] availablepatches
-  let statusrankedpatches sort-on [(- status)] availablepatches
-  let SErankedpatches sort-by
-    [ ([status] of ?1 > [status] of ?2) or 
-      ([status] of ?1 = [status] of ?2 and [pycor] of ?1 > [pycor] of ?2) ] availablepatches
-
   let rankedpatches []
-                                                                    
+  
+  set unhappypeople sort-on [(- resources)] unhappypeople                                                                   
   foreach unhappypeople [ ask ? 
     [  
       if patchranking = "status"
-        [ set rankedpatches statusrankedpatches ]
-      if patchranking = "elevationanywhere"
-        [ ifelse elevation-seeker?
-          [ set rankedpatches elrankedpatches ] 
-          [ ifelse elevation-liker?
-            [ set rankedpatches SErankedpatches ]
-            [ set rankedpatches statusrankedpatches ]
+        [ ifelse health-seeker?
+          [ let rankedpatchset availablepatches in-radius move-distance
+            set rankedpatches sort-by [
+            ([improved?] of ?1 = True and [improved?] of ?2 = False) or 
+            ([improved?] of ?1 = [improved?] of ?2 and [status] of ?1 > [status] of ?2) 
+            ] rankedpatchset ] 
+          [ let rankedpatchset availablepatches in-radius move-distance
+            set rankedpatches sort-on [(- status)] rankedpatchset ]
           ]
-        ]
-      if patchranking = "elevationneighbours"
-        [ ifelse elevation-seeker?
-          [ set rankedpatches sort-by [
-            ([pycor] of ?1 > [pycor] of ?2) or 
-            ([pycor] of ?1 = [pycor] of ?2 and [status] of ?1 > [status] of ?2) 
-            ] neighbors with [available? = True] ]
-          [ set rankedpatches sort-on [status] neighbors with [available? = True] ]
-        ]
-      if patchranking = "none"
-        [ set rankedpatches other availablepatches ]
-      if patchranking = "elev-statusfunction"
-        [ let rankedpatchset availablepatches in-radius move-distance
-          set rankedpatches [self] of rankedpatchset ]
-        
-      if patchranking = "status-associated"
-        [ ifelse elevation-seeker?
-          [ set rankedpatches elrankedpatches ]  
-          [ ifelse correlation-y?
-            [ let rankedpatchset availablepatches in-radius move-distance
-              set rankedpatches sort-on [(-(status - ((abs (pycor - goal-y)) ^ elpenalty)))] rankedpatchset ]
-;            [ let rankedpatchset availablepatches in-radius move-distance
-;              set rankedpatches sort-on [(-(status + (abs (pycor - goal-y) / (pycor - goal-y)) * ((abs (pycor - goal-y)) ^ elpenalty)))] rankedpatchset ]
-;            [ let rankedpatchset availablepatches in-radius move-distance
-;              let p ((abs (pycor - goal-y)) / world-height * (hs-c - hs-f) + hs-f)
-;              set rankedpatches sort-on [(-(status * p))] rankedpatchset ]
-            [ set rankedpatches statusrankedpatches ] ]
-        ]
       
+;      show rankedpatches
       let partner best-partner self rankedpatches
       
-;      if resources-sign = "-" and [happy?] of partner = True
-;        [ type resources type partner show [resources] of partner ]
-
       if partner != nobody [
         let partnerpatch [patch-here] of partner
-        set elrankedpatches remove (partnerpatch) elrankedpatches
-        set statusrankedpatches remove (partnerpatch) statusrankedpatches
         ask partnerpatch [set available? False]
         set availablepatches patches with [available? = True]
       
@@ -301,29 +162,11 @@ to move-unhappy-people
         set moves moves + 1
       ]
         
-        if recording? = True
-          [ movie-grab-view ]
-        
       ]
     ]
 end
 
-to-report best-partner [thisperson thispatchlist]
-  if choose-partner = "resourcesgreater"
-    [ report one-of turtles-on (item 0 thispatchlist) ]
-  
-  if choose-partner = "withindistance"
-    [ let d max-pxcor * 4
-      foreach thispatchlist [
-        let partner one-of turtles-on ? 
-        ask thisperson [
-          set d distance partner
-        ]
-        if d <= move-distance 
-          [ report partner ]
-      ]
-    ]
-  
+to-report best-partner [thisperson thispatchlist] 
   if choose-partner = "resources&distance"
     [ let d max-pxcor * 4
       foreach thispatchlist [
@@ -334,59 +177,17 @@ to-report best-partner [thisperson thispatchlist]
         if d <= move-distance and ([happy?] of partner = False or resources > [resources] of partner)
           [ report partner ]
       ]
-    ]
-  
-  if choose-partner = "free"
-    [ foreach thispatchlist [
-        let partner one-of turtles-on ?
-        ask thisperson [
-          if [resources-sign] of partner != resources-sign
-            [ report partner ] 
-        ]
-      ]
-    ]  
-
-  
-  if choose-partner = "elev-statusfunction"
-    [ let patchset patch-set thispatchlist 
-      foreach thispatchlist [
-      set elev-status ([elevation-desire] of thisperson * [pycor] of ?) / ([elevation-desire] of thisperson + [status-desire] of thisperson) + [status-desire] of thisperson * [status] of ? / ([elevation-desire] of thisperson + [status-desire] of thisperson)
-      ]
-    let rankedpatches sort-on [(- elev-status)] patchset
-    report one-of turtles-on (item 0 rankedpatches)
-    ]
-    
+    ] 
   report nobody
 end
 
-to update-similar
-  let matchcolor color
-  let neighbours (turtles-on neighbors)
-  set similar (count neighbours with [color = matchcolor]) / (count neighbours) * 100.0
-end
-
-to update-equilibrium
-  if start-happy = end-happy 
-    [set equilibrium? True ]
-    
-;  ifelse length recent-happiness < count people * .1
-;    [ set recent-happiness sentence recent-happiness (count people with [happy? = True]) ]
-;    [ set recent-happiness sentence (but-first recent-happiness) (count people with [happy? = True])
-;      if max recent-happiness - min recent-happiness <= .01 * count turtles [
-;        set equilibrium? True
-;      ]
-;    ]  
-end
-
-to record-movie
+to gif
   setup
-  set recording? True
-  movie-start "C:/Users/Rebecca/Dropbox/NetLogo 5.1.0 - Win/Beckie's models/exports/out.mov"
-  movie-grab-view
-  while [ equilibrium? = False ]
+  set gif? True
+  export-view (word "sanitation" (word ticks ".png"))
+  while [ticks < 101]
     [ go ]
-  movie-close
-  set recording? False
+  set gif? False
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
@@ -451,12 +252,12 @@ NIL
 0
 
 SLIDER
-21
-54
-215
-87
-z-elevation-seekers
-z-elevation-seekers
+20
+73
+214
+106
+z-health-seekers
+z-health-seekers
 -4
 4
 1
@@ -486,10 +287,10 @@ PENS
 "green people" 1.0 0 -13840069 true "" "plot count people with [ happy? = True and resources >= 0] \n/ count people with [ resources >= 0 ] * 100"
 
 MONITOR
-16
-135
-99
-188
+13
+193
+96
+246
 red %
 count people with [resources < 0] / count people * 100
 2
@@ -497,10 +298,10 @@ count people with [resources < 0] / count people * 100
 13
 
 MONITOR
-15
-195
-116
-248
+124
+199
+225
+252
 happy %
 count people with [happy? = True] / count people * 100
 2
@@ -618,12 +419,12 @@ mean [ycor] of people with [resources >= 0]
 13
 
 MONITOR
-163
-133
-309
-186
-% elevation seekers
-(count people with [elevation-seeker? = True] / count people) * 100
+14
+124
+160
+177
+% health seekers
+(count people with [health-seeker? = True] / count people) * 100
 0
 1
 13
@@ -636,7 +437,7 @@ CHOOSER
 patchranking
 patchranking
 "status" "elevationanywhere" "elevationneighbours" "elevationdistance" "elev-statusfunction" "none" "status-associated"
-6
+0
 
 CHOOSER
 257
@@ -647,23 +448,6 @@ choose-partner
 choose-partner
 "free" "resourcesgreater" "withindistance" "elev-statusfunction" "resources&distance"
 4
-
-BUTTON
-160
-20
-231
-53
-movie
-record-movie
-NIL
-1
-T
-OBSERVER
-NIL
-NIL
-NIL
-NIL
-1
 
 PLOT
 651
@@ -706,10 +490,10 @@ max [resources] of turtles
 13
 
 SLIDER
-391
-169
-563
-202
+491
+143
+663
+176
 move-distance
 move-distance
 0
@@ -725,7 +509,7 @@ PLOT
 675
 793
 825
-plot 1
+ desires
 NIL
 NIL
 -100.0
@@ -733,11 +517,11 @@ NIL
 0.0
 10.0
 true
-false
+true
 "" ""
 PENS
-"default" 1.0 1 -16777216 true "" "histogram [elevation-desire] of turtles"
-"pen-1" 1.0 1 -7500403 true "" "histogram [status-desire] of turtles"
+"health" 1.0 1 -16777216 true "" "histogram [health-desire] of turtles"
+"status" 1.0 1 -7500403 true "" "histogram [status-desire] of turtles"
 
 SWITCH
 494
@@ -779,28 +563,6 @@ el-floor
 1
 NIL
 HORIZONTAL
-
-MONITOR
-454
-262
-589
-315
-mean ES elevation
-mean [pycor] of people with [elevation-seeker? = True]
-2
-1
-13
-
-MONITOR
-455
-325
-614
-378
-mean nonES elevation
-mean [pycor] of people with [elevation-seeker? = False]
-2
-1
-13
 
 MONITOR
 857
@@ -847,32 +609,6 @@ mean [resources] of people with [pycor <= (- max-pycor) / 2]
 13
 
 SLIDER
-22
-94
-194
-127
-z-elevation-likers
-z-elevation-likers
--4
-4
-4
-.1
-1
-NIL
-HORIZONTAL
-
-MONITOR
-164
-195
-293
-248
-% elevation likers
-count people with [elevation-liker? = True] / count people * 100
-0
-1
-13
-
-SLIDER
 701
 112
 873
@@ -903,10 +639,10 @@ NIL
 HORIZONTAL
 
 SLIDER
-391
-124
-563
-157
+491
+98
+663
+131
 %highstatus
 %highstatus
 0
@@ -916,54 +652,6 @@ SLIDER
 1
 NIL
 HORIZONTAL
-
-MONITOR
-464
-385
-600
-438
-mean HS elevation
-mean [pycor] of people with [high-status? = True]
-2
-1
-13
-
-SLIDER
-391
-213
-563
-246
-elpenalty
-elpenalty
-0
-2
-1.25
-.01
-1
-NIL
-HORIZONTAL
-
-MONITOR
-465
-441
-623
-494
-mean HS ES elevation
-mean [pycor] of people with [elevation-seeker? = True and high-status? = True]
-2
-1
-13
-
-MONITOR
-464
-499
-620
-552
-mean LS ES elevation
-mean [pycor] of people with [elevation-seeker? = True and high-status? = False]
-2
-1
-13
 
 SLIDER
 702
@@ -1022,17 +710,6 @@ correlation-y?
 13
 
 MONITOR
-601
-385
-735
-438
-mean LS elevation
-mean [pycor] of people with [high-status? = False]
-2
-1
-13
-
-MONITOR
 865
 363
 922
@@ -1042,6 +719,68 @@ goal-y
 2
 1
 13
+
+BUTTON
+167
+20
+230
+53
+gif
+gif
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+SLIDER
+255
+129
+427
+162
+cost-threshold
+cost-threshold
+-100
+100
+2
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+257
+177
+429
+210
+activist-threshold
+activist-threshold
+0
+9
+2
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+496
+197
+668
+230
+distpenalty
+distpenalty
+0
+2
+1.25
+.01
+1
+NIL
+HORIZONTAL
 
 @#$#@#$#@
 ## WHAT IS IT?
