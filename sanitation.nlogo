@@ -11,6 +11,8 @@ people-own [
   health-seeker?
   resources-sign
   high-status?
+  checked?
+  clusterset?
 ]
 
 patches-own [
@@ -31,6 +33,8 @@ globals [
   goal-x
   correlation-y?
   correlation-x?
+  adjcluster
+  not-checked
 ]
 
 to setup
@@ -78,6 +82,8 @@ to setup-people-random
       let g median (list 255 (225 - (255 - 0) * c) 0)
       let b median (list 255 (255 - (255 - 82) * c) 99)
       set color (list r g b)
+      
+      set checked? False
     ]
   ]
 end
@@ -87,11 +93,6 @@ to update-patches
     let statusref [resources] of turtles-here
     let neighbours (turtles-on neighbors)
     set status (mean [resources] of neighbours)
-    
-    ifelse status > cost-threshold and count neighbours with [health-seeker? = True] >= activist-threshold
-      [ set improved? True
-        set pcolor green ]
-      [ set improved? False ]
   ]
 end
   
@@ -107,9 +108,28 @@ to update-people
   let hspeople people with [high-status? = True]
   let non-hspeople people with [high-status? = False]
   
+  let activists people with [health-seeker? = True]
+  ask activists
+    [ if checked? = False
+        [ let cluster (find-adjacent self activists)
+          foreach cluster
+            [ ask ?
+              [ set clusterset? True
+                set checked? True ]
+            ]
+          let clusterset people with [clusterset? = True]
+          if sum [resources] of clusterset > cost-threshold
+            [ ask clusterset
+              [ ask patches in-radius 1
+                [ set pcolor green ] ]
+            ]
+          ask clusterset [ set clusterset? False ]
+        ]
+    ]    
+  
   ask people [
     ifelse health-seeker?
-    [ ifelse [improved?] of patch-here = True and [status] of patch-here >= resources
+    [ ifelse [improved?] of patch-here = True
       [ set happy? True ]
       [ set happy? False ]
     ]
@@ -117,8 +137,32 @@ to update-people
       [ set happy? True ]
       [ set happy? False ] 
     ]
+    set checked? False
   ]
   
+end
+
+to-report find-adjacent [thisperson similarpeople]
+  set adjcluster (list thisperson)
+  set not-checked (list thisperson)
+  while [length not-checked > 0]
+    [ foreach not-checked
+      [ let matchingneighbours match-neighbours ? similarpeople
+        set adjcluster sentence adjcluster matchingneighbours
+        set not-checked sentence not-checked matchingneighbours
+        set not-checked remove ? not-checked
+      ]
+    ]
+  report adjcluster
+end
+      
+to-report match-neighbours [thisperson similarpeople]
+  let matchingneighbours []
+  ask [neighbors] of thisperson
+    [ if member? (one-of turtles-here) similarpeople and not member? (one-of turtles-here) adjcluster
+      [ set matchingneighbours sentence matchingneighbours (one-of turtles-here) ]
+    ]
+  report matchingneighbours
 end
 
 to move-unhappy-people
