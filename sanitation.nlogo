@@ -17,28 +17,21 @@ people-own [
 
 patches-own [
   status
-  elev-status
   available?
   improved?
 ]
 
 globals [
-  equilibrium?
   moves
-  recent-happiness
   gif?
-  start-happy
-  end-happy
-  goal-y
-  goal-x
-  correlation-y?
-  correlation-x?
+  correlation-g?
   adjcluster
   not-checked
 ]
 
 to setup
   set gif? False
+  set correlation-g? False
   clear-all
   setup-people-random
   update-patches
@@ -118,10 +111,13 @@ to update-people
                 set checked? True ]
             ]
           let clusterset people with [clusterset? = True]
-          if sum [resources] of clusterset > cost-threshold
+          if mean [resources] of clusterset > cost-threshold
             [ ask clusterset
-              [ ask patches in-radius 1
-                [ set pcolor green ] ]
+              [ ask patch-here 
+                  [ set pcolor green ]
+                ask neighbors
+                  [ set pcolor green ] 
+              ]
             ]
           ask clusterset [ set clusterset? False ]
         ]
@@ -129,16 +125,41 @@ to update-people
   
   ask people [
     ifelse health-seeker?
-    [ ifelse [improved?] of patch-here = True
+    [ ifelse [pcolor] of patch-here = green
       [ set happy? True ]
       [ set happy? False ]
     ]
-    [ ifelse [status] of patch-here >= resources
-      [ set happy? True ]
-      [ set happy? False ] 
+    [ ifelse correlation-g? = True
+      [ ifelse [pcolor] of patch-here = green
+        [ set happy? True ]
+        [ set happy? False ]
+      ]
+      [ ifelse [status] of patch-here >= resources
+        [ set happy? True ]
+        [ set happy? False ]
+      ] 
     ]
     set checked? False
   ]
+  
+  if count patches with [pcolor = green] > 0
+    [ let g people with [[pcolor] of patch-here = green]
+      let notg people with [[pcolor] of patch-here != green]
+      ifelse abs (mean [resources] of g - mean [resources] of notg) > diff
+        [ set correlation-g? True ]
+        [ set correlation-g? False ]
+        
+      ask g
+        [ if health-seeker? = False
+          [ if random 100 < conversion-chance
+            [ set health-seeker? True 
+              set shape "star" 
+              ask neighbors
+                [ set pcolor green ]
+            ]
+          ]
+        ]
+    ]
   
 end
 
@@ -171,33 +192,32 @@ to move-unhappy-people
   ask unhappypeople [ ask patch-here [ set available? True ] ]
   let availablepatches []
   
-  ifelse move-happy? 
-    [ set availablepatches patches ]
-    [ set availablepatches patches with [available? = True] ]
+;  ifelse move-happy? 
+;    [ set availablepatches patches ]
+;    [ set availablepatches patches with [available? = True] ]
+;  show [self] of availablepatches
   
   let rankedpatches []
   
   set unhappypeople sort-on [(- resources)] unhappypeople                                                                   
   foreach unhappypeople [ ask ? 
-    [  
+    [ let rankedpatchset patches with [distance ? <= move-distance]
+;      show ?
+;      show [self] of rankedpatchset
       if patchranking = "status"
-        [ ifelse health-seeker?
-          [ let rankedpatchset availablepatches in-radius move-distance
-            set rankedpatches sort-by [
-            ([improved?] of ?1 = True and [improved?] of ?2 = False) or 
-            ([improved?] of ?1 = [improved?] of ?2 and [status] of ?1 > [status] of ?2) 
+        [ ifelse health-seeker? or correlation-g?
+          [ set rankedpatches sort-by [ ([pcolor] of ?1 = green and [pcolor] of ?2 != green) or ([pcolor] of ?1 = [pcolor] of ?2 and [status] of ?1 > [status] of ?2) 
             ] rankedpatchset ] 
-          [ let rankedpatchset availablepatches in-radius move-distance
-            set rankedpatches sort-on [(- status)] rankedpatchset ]
+          [ set rankedpatches sort-on [(- status)] rankedpatchset ]
           ]
       
 ;      show rankedpatches
       let partner best-partner self rankedpatches
       
       if partner != nobody [
-        let partnerpatch [patch-here] of partner
-        ask partnerpatch [set available? False]
-        set availablepatches patches with [available? = True]
+;        let partnerpatch [patch-here] of partner
+;        ask partnerpatch [set available? False]
+;        set availablepatches patches with [available? = True]
       
         let currentpos patch-here
         let newpos [patch-here] of partner
@@ -208,6 +228,7 @@ to move-unhappy-people
         
       ]
     ]
+;  ask patches [set available? True]
 end
 
 to-report best-partner [thisperson thispatchlist] 
@@ -218,7 +239,8 @@ to-report best-partner [thisperson thispatchlist]
         ask thisperson [
           set d distance partner
         ]
-        if d <= move-distance and ([happy?] of partner = False or resources > [resources] of partner)
+;        if d <= move-distance and ([happy?] of partner = False or resources > [resources] of partner)
+        if d <= move-distance and (resources > [resources] of partner)
           [ report partner ]
       ]
     ] 
@@ -237,10 +259,10 @@ end
 GRAPHICS-WINDOW
 1045
 10
-1383
-369
-20
-20
+1863
+849
+50
+50
 8.0
 1
 10
@@ -251,10 +273,10 @@ GRAPHICS-WINDOW
 0
 0
 1
--20
-20
--20
-20
+-50
+50
+-50
+50
 1
 1
 1
@@ -542,7 +564,7 @@ move-distance
 move-distance
 0
 10
-4
+2
 1
 1
 NIL
@@ -702,8 +724,8 @@ SLIDER
 209
 874
 242
-hs-diff
-hs-diff
+diff
+diff
 0
 10
 2
@@ -712,55 +734,14 @@ hs-diff
 NIL
 HORIZONTAL
 
-SLIDER
-703
-256
-875
-289
-hs-c
-hs-c
--2
-2
-1
-.01
-1
-NIL
-HORIZONTAL
-
-SLIDER
-704
-302
-876
-335
-hs-f
-hs-f
--2
-2
-0
-.01
-1
-NIL
-HORIZONTAL
-
 MONITOR
-858
-502
-961
-555
-correlation-y?
-correlation-y?
+485
+397
+589
+450
+correlation-g?
+correlation-g?
 17
-1
-13
-
-MONITOR
-865
-363
-922
-416
-goal-y
-goal-y
-2
 1
 13
 
@@ -790,7 +771,7 @@ cost-threshold
 cost-threshold
 -100
 100
-2
+25
 1
 1
 NIL
@@ -822,6 +803,43 @@ distpenalty
 2
 1.25
 .01
+1
+NIL
+HORIZONTAL
+
+MONITOR
+485
+263
+617
+316
+g mean resources
+mean [resources] of people with [[pcolor] of patch-here = green]
+2
+1
+13
+
+MONITOR
+487
+330
+632
+383
+non-g mean resources
+mean [resources] of people with [[pcolor] of patch-here != green]
+2
+1
+13
+
+SLIDER
+707
+265
+882
+298
+conversion-chance
+conversion-chance
+0
+100
+5
+1
 1
 NIL
 HORIZONTAL
