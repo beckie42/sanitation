@@ -59,12 +59,15 @@ to setup-people-random
         [ set resources-sign "-" ]
       set health-desire random-normal 30 20
       set status-desire random-normal 50 10
+      
+      ;;; designate individuals with health-desire above the threshold as health-seekers
       ifelse health-desire > (z-health-seekers * 20 + 30)
         [ set health-seeker? True
           set shape "triangle" 
           ]
         [ set health-seeker? False ]
        
+      ;;; set turtle colour range from light to dark purple, based on resources
       let c (resources + 75) / 150
       if c != 1 and c != 0 and c != 0.5 and c > 0 and c < 1
         [ ifelse c > 0.5
@@ -83,6 +86,7 @@ end
 
 to update-patches
   ask patches [
+    ;;; set status of patches based on resources of neighbours
     let statusref [resources] of turtles-here
     let neighbours (turtles-on neighbors)
     set status (mean [resources] of neighbours)
@@ -90,6 +94,7 @@ to update-patches
 end
   
 to update-people
+  ;;; identify high status people based on resources
   let rankedpeople sort-on [(- resources)] people
   let cutoff (precision (%highstatus / 100 * count people) 0)
   ask people [
@@ -101,6 +106,7 @@ to update-people
   let hspeople people with [high-status? = True]
   let non-hspeople people with [high-status? = False]
   
+  ;;; identify clusters of health-seekers and determine whether they have sufficient resources to take action
   let activists people with [health-seeker? = True]
   ask activists
     [ if checked? = False
@@ -123,17 +129,21 @@ to update-people
         ]
     ]    
   
+  ;;; update happiness
   ask people [
+    ;;; health seekers are happy when on a green patch
     ifelse health-seeker?
     [ ifelse [pcolor] of patch-here = green
       [ set happy? True ]
       [ set happy? False ]
     ]
+    ;;; if green is correlated with high status, status seekers are happy when on a green patch
     [ ifelse correlation-g? = True
       [ ifelse [pcolor] of patch-here = green
         [ set happy? True ]
         [ set happy? False ]
       ]
+      ;;; otherwise, status seekers are happy when on a patch with status greater than their own resources
       [ ifelse [status] of patch-here >= resources
         [ set happy? True ]
         [ set happy? False ]
@@ -142,13 +152,15 @@ to update-people
     set checked? False
   ]
   
+  ;;; check whether green is associated with status
   if count patches with [pcolor = green] > 0
     [ let g people with [[pcolor] of patch-here = green]
       let notg people with [[pcolor] of patch-here != green]
       ifelse abs (mean [resources] of g - mean [resources] of notg) > diff
         [ set correlation-g? True ]
         [ set correlation-g? False ]
-        
+      
+      ;;; check whether non-health-seekers on green patches convert to health-seekers  
       ask g
         [ if health-seeker? = False
           [ if random 100 < conversion-chance
@@ -163,6 +175,7 @@ to update-people
   
 end
 
+;;; given a person in the set "similarpeople", report a list of that person's neighbours who are also in the set "similarpeople"
 to-report find-adjacent [thisperson similarpeople]
   set adjcluster (list thisperson)
   set not-checked (list thisperson)
@@ -259,10 +272,10 @@ end
 GRAPHICS-WINDOW
 1045
 10
-1863
-849
-50
-50
+1290
+209
+10
+10
 8.0
 1
 10
@@ -273,10 +286,10 @@ GRAPHICS-WINDOW
 0
 0
 1
--50
-50
--50
-50
+-10
+10
+-10
+10
 1
 1
 1
@@ -847,11 +860,37 @@ HORIZONTAL
 @#$#@#$#@
 ## WHAT IS IT?
 
-(a general understanding of what the model is trying to show or explain)
+An individual can improve their health by taking health-directed action. However, other actions that are not intrinsically health-directed can also affect their health, e.g., moving to a "better" neighbourhood. These actions can work through spillover effects from the health-directed actions of other people. For example, if a small number of people care enough about improving their neighbourhood (and have sufficient resources) to contribute the initial costs, everyone living in that neighbourhood will benefit.
+In addition, people may take action to acquire the same improvements for reasons other than health-seeking. For example, if a health-improving action becomes associated with high status, people who care about status, by taking status-direction actions, will also improve their health.
+
+This model simulates the process by which a small initial number of wealthy health-seekers introducing an amenity (sanitation) to their neighbourhood leads to the widespread adoption of the amenity over time through status-seeking rather than health-directed action.
 
 ## HOW IT WORKS
 
-(what rules the agents use to create the overall behavior of the model)
+*INITIAL SETUP*
+
+Each individual has a randomly assigned level of resources, health desire and status desire. These variables are normally distributed across the population. The mean status desire is greater than the mean health desire and has a smaller standard deviation. Turtles are coloured based on resources from light purple (lowest) to dark purple (highest).
+
+The initial number of active health seekers is controlled by the z-health-seekers slider. This value indicates the z-score for health desire at which an individual starts attempting to take health-directed action. Individuals with health desire greater than this threshold are labelled "health seekers" and indicated by a triangle.
+
+The percentage of people considered to be "high status" can be adjusted using the %high-status slider. The people within that top percentile for resources will be designated "high status". If a neighbourhood becomes associated with high-status people, status-seeking individuals will attempt to move into that neighbourhood.
+
+Each patch has a "status" value equal to the mean resources of the people on (the patch and?) its 8 neighbours.
+
+*HAPPINESS*
+
+Health seekers are happy when they are living on an improved patch (indicated by green patch shading).
+
+Status seekers are initially happy when they are living on a patch with greater status than their own resources.
+
+If living on a green patch becomes associated with status (i.e., the mean resources of people living on green patches is more than "diff" greater than the mean resources of people living on non-green patches), then status seekers will also only be happy when living on an improved (green) patch.
+
+*NEIGHBOURHOOD IMPROVEMENTS*
+
+The cost of implementing a health-directed improvemenet is set using the cost-threshold slider. If the mean resources of the health seekers within a 9-patch neighbourhood collectively is greater than the cost-threshold, the neighbourhood will be improved, i.e., all 9 patches will be coloured green.  
+
+Non-health seekers living on improved patches may come to appreciate the benefits of the improvement and convert to being health-seekers (**NB change to "green seekers"?) themselves. The probability of doing so is set by the conversion-chance slider.
+
 
 ## HOW TO USE IT
 
@@ -1200,7 +1239,7 @@ Polygon -7500403 true true 270 75 225 30 30 225 75 270
 Polygon -7500403 true true 30 75 75 30 270 225 225 270
 
 @#$#@#$#@
-NetLogo 5.0.4
+NetLogo 5.1.0
 @#$#@#$#@
 @#$#@#$#@
 @#$#@#$#@
