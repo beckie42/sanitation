@@ -156,9 +156,11 @@ to update-people
   if count patches with [pcolor = green] > 0
     [ let g people with [[pcolor] of patch-here = green]
       let notg people with [[pcolor] of patch-here != green]
-      ifelse abs (mean [resources] of g - mean [resources] of notg) > diff
-        [ set correlation-g? True ]
-        [ set correlation-g? False ]
+      if count notg > 0
+        [ ifelse abs (mean [resources] of g - mean [resources] of notg) > diff
+          [ set correlation-g? True ]
+          [ set correlation-g? False ]
+        ]
       
       ;;; check whether non-health-seekers on green patches convert to health-seekers  
       ask g
@@ -199,7 +201,9 @@ to-report match-neighbours [thisperson similarpeople]
   report matchingneighbours
 end
 
+;;; people who are unhappy move to the best square they can afford (i.e., outbid for)
 to move-unhappy-people
+  ;;; only unhappy people move and have available patches
   set moves 0
   let unhappypeople people with [happy? = False]
   ask unhappypeople [ ask patch-here [ set available? True ] ]
@@ -212,11 +216,15 @@ to move-unhappy-people
   
   let rankedpatches []
   
+  ;;; unhappy people move in descending order of resources
   set unhappypeople sort-on [(- resources)] unhappypeople                                                                   
-  foreach unhappypeople [ ask ? 
+  foreach unhappypeople [ ask ?
+    ;;; people can move a maximum of move-distance from their current patch 
     [ let rankedpatchset patches with [distance ? <= move-distance]
 ;      show ?
 ;      show [self] of rankedpatchset
+      ;;; patches are ranked in descending order by status. However, if the moving person is a health seeker or there is a correlation between green and status, 
+      ;;; all green patches are first ranked by descending status, followed by non-green patches by descening status
       if patchranking = "status"
         [ ifelse health-seeker? or correlation-g?
           [ set rankedpatches sort-by [ ([pcolor] of ?1 = green and [pcolor] of ?2 != green) or ([pcolor] of ?1 = [pcolor] of ?2 and [status] of ?1 > [status] of ?2) 
@@ -244,6 +252,8 @@ to move-unhappy-people
 ;  ask patches [set available? True]
 end
 
+
+;;; report the owner of the best available patch for which the buyer can outbid the seller
 to-report best-partner [thisperson thispatchlist] 
   if choose-partner = "resources&distance"
     [ let d max-pxcor * 4
@@ -272,10 +282,10 @@ end
 GRAPHICS-WINDOW
 1045
 10
-1290
-209
-10
-10
+1303
+289
+15
+15
 8.0
 1
 10
@@ -286,10 +296,10 @@ GRAPHICS-WINDOW
 0
 0
 1
--10
-10
--10
-10
+-15
+15
+-15
+15
 1
 1
 1
@@ -320,7 +330,7 @@ BUTTON
 52
 NIL
 go
-T
+NIL
 1
 T
 OBSERVER
@@ -362,8 +372,8 @@ true
 "" ""
 PENS
 "all people" 1.0 0 -817084 true "" "plot count people with [ happy? = True ] / count people * 100"
-"red people" 1.0 0 -2674135 true "" "plot count people with [ happy? = True and resources < 0] / count people with [ resources < 0 ] * 100"
-"green people" 1.0 0 -13840069 true "" "plot count people with [ happy? = True and resources >= 0] \n/ count people with [ resources >= 0 ] * 100"
+"- resources" 1.0 0 -2674135 true "" "plot count people with [ happy? = True and resources < 0] / count people with [ resources < 0 ] * 100"
+"+ resources" 1.0 0 -13840069 true "" "plot count people with [ happy? = True and resources >= 0] \n/ count people with [ resources >= 0 ] * 100"
 
 MONITOR
 13
@@ -472,8 +482,8 @@ true
 true
 "" ""
 PENS
-"red people" 1.0 0 -2674135 true "" "plot mean [ycor] of people with [resources < 0]"
-"green people" 1.0 0 -13840069 true "" "plot mean [ycor] of people with [resources >= 0]"
+"- resources" 1.0 0 -2674135 true "" "plot mean [ycor] of people with [resources < 0]"
+"+ resources" 1.0 0 -13840069 true "" "plot mean [ycor] of people with [resources >= 0]"
 
 MONITOR
 248
@@ -865,6 +875,10 @@ In addition, people may take action to acquire the same improvements for reasons
 
 This model simulates the process by which a small initial number of wealthy health-seekers introducing an amenity (sanitation) to their neighbourhood leads to the widespread adoption of the amenity over time through status-seeking rather than health-directed action.
 
+?? Should the initial introduction of the amenity require a specific sum, rather than mean, resources?
+Should people who are converted to green seekers really be treated the same as health seekers?
+
+
 ## HOW IT WORKS
 
 *INITIAL SETUP*
@@ -889,8 +903,17 @@ If living on a green patch becomes associated with status (i.e., the mean resour
 
 The cost of implementing a health-directed improvemenet is set using the cost-threshold slider. If the mean resources of the health seekers within a 9-patch neighbourhood collectively is greater than the cost-threshold, the neighbourhood will be improved, i.e., all 9 patches will be coloured green.  
 
-Non-health seekers living on improved patches may come to appreciate the benefits of the improvement and convert to being health-seekers (**NB change to "green seekers"?) themselves. The probability of doing so is set by the conversion-chance slider.
+Non-health seekers living on improved patches may come to appreciate the benefits of the improvement and convert to being health-seekers (**NB change to "green seekers"?) themselves. The probability of doing so, once exposed to a green improved square, is set by the conversion-chance slider.
 
+*MOVING*
+
+People who are unhappy will try to move to a patch on which they will be happy. An unhappy person can force a happy person off their patch if the buyer has greater resources than the seller.
+
+Move order is set by resources, with people having the opportunity to find a new patch in order of decreasing resources. No person can move more than the distance set by the "move-distance" slider.
+
+The patches available to each person (i.e., those within move-distance) are ranked according to the happiness requirements of the buyer. For status seekers, the patches are ranked by status. For health seekers, all improved (green) patches are ranked by status, ahead of unimproved patches, which are also ranked by status. If improvements become associated with status, status seekers will be treated as health seekers.
+
+A buyer finds a new patch to move to by checking the list of ranked available patches from most to least desirable until reaching one whose current owner has fewer resources than the buyer. The buyer and seller then swap patches. If a buyer does not find a patch whose owner they can outbid, the buyer will not move.
 
 ## HOW TO USE IT
 
