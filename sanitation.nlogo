@@ -9,6 +9,7 @@ people-own [
   health-desire
   status-desire
   health-seeker?
+  green-seeker?
   resources-sign
   high-status?
   checked?
@@ -30,9 +31,9 @@ globals [
 ]
 
 to setup
+  clear-all
   set gif? False
   set correlation-g? False
-  clear-all
   setup-people-random
   update-patches
   update-people
@@ -40,12 +41,15 @@ to setup
 end
 
 to go
-  move-unhappy-people
-  update-people
-  update-patches
-  tick
-  if gif? = True
-    [ export-view (word "sanitation" (word ticks ".png")) ]
+  if count patches with [pcolor != green] > 0
+    [
+      move-unhappy-people
+      update-people
+      update-patches
+      tick
+      if gif? = True
+        [ export-view (word "sanitation" (word ticks ".png")) ]
+    ]
 end
 
 to setup-people-random
@@ -66,6 +70,9 @@ to setup-people-random
           set shape "triangle" 
           ]
         [ set health-seeker? False ]
+        
+      ;;; nobody is a green-seeker initially
+      set green-seeker? False
        
       ;;; set turtle colour range from light to dark purple, based on resources
       let c (resources + 75) / 150
@@ -117,7 +124,8 @@ to update-people
                 set checked? True ]
             ]
           let clusterset people with [clusterset? = True]
-          if mean [resources] of clusterset > cost-threshold
+;          if mean [resources] of clusterset > cost-threshold
+          if sum [resources] of clusterset > sum-threshold
             [ ask clusterset
               [ ask patch-here 
                   [ set pcolor green ]
@@ -133,22 +141,45 @@ to update-people
   ask people [
     ;;; health seekers are happy when on a green patch
     ifelse health-seeker?
-    [ ifelse [pcolor] of patch-here = green
-      [ set happy? True ]
-      [ set happy? False ]
-    ]
-    ;;; if green is correlated with high status, status seekers are happy when on a green patch
-    [ ifelse correlation-g? = True
       [ ifelse [pcolor] of patch-here = green
         [ set happy? True ]
         [ set happy? False ]
       ]
-      ;;; otherwise, status seekers are happy when on a patch with status greater than their own resources
-      [ ifelse [status] of patch-here >= resources
-        [ set happy? True ]
-        [ set happy? False ]
-      ] 
-    ]
+    
+      ;;; for green seekers, being on a green patch can make up for g-compensation in status
+      [ ifelse green-seeker?
+        [ ifelse [pcolor] of patch-here = green
+          [ ifelse [status] of patch-here + g-compensation >= resources
+              [ set happy? True ]
+              [ set happy? False ]
+            ]
+          [ ifelse [status] of patch-here >= resources
+            [ set happy? True ]
+            [ set happy? False ]
+            ]
+        ]
+      
+        ;;; if green is correlated with high status, being on a green patch can make up for some status for all status seekers
+        ;;; the amount by which a green patch can compensate is the mean difference in resources between people on green and non-green patches
+        [ ifelse correlation-g? = True
+          [ let g-comp (mean [resources] of people with [[pcolor] of patch-here = green] - mean [resources] of people with [[pcolor] of patch-here != green])
+            ifelse [pcolor] of patch-here = green
+            [ ifelse [status] of patch-here + g-comp >= resources
+              [ set happy? True ]
+              [ set happy? False ]
+            ]
+            [ ifelse [status] of patch-here >= resources
+              [ set happy? True ]
+              [ set happy? False ]
+            ]
+          ]
+          ;;; otherwise, status seekers are happy when on a patch with status greater than their own resources
+          [ ifelse [status] of patch-here >= resources
+            [ set happy? True ]
+            [ set happy? False ]
+          ] 
+        ]
+      ]
     set checked? False
   ]
   
@@ -166,10 +197,10 @@ to update-people
       ask g
         [ if health-seeker? = False
           [ if random 100 < conversion-chance
-            [ set health-seeker? True 
+            [ set green-seeker? True 
               set shape "star" 
-              ask neighbors
-                [ set pcolor green ]
+;              ask neighbors
+;                [ set pcolor green ]
             ]
           ]
         ]
@@ -330,7 +361,7 @@ BUTTON
 52
 NIL
 go
-NIL
+T
 1
 T
 OBSERVER
@@ -579,10 +610,10 @@ max [resources] of turtles
 13
 
 SLIDER
-491
-143
-663
-176
+482
+119
+654
+152
 move-distance
 move-distance
 0
@@ -728,10 +759,10 @@ NIL
 HORIZONTAL
 
 SLIDER
-491
-98
-663
-131
+482
+74
+654
+107
 %highstatus
 %highstatus
 0
@@ -758,13 +789,13 @@ NIL
 HORIZONTAL
 
 MONITOR
-485
-397
-589
-450
+489
+437
+593
+490
 correlation-g?
 correlation-g?
-17
+1
 1
 13
 
@@ -816,10 +847,10 @@ NIL
 HORIZONTAL
 
 SLIDER
-496
-197
-668
-230
+482
+157
+654
+190
 distpenalty
 distpenalty
 0
@@ -867,6 +898,47 @@ conversion-chance
 NIL
 HORIZONTAL
 
+SLIDER
+256
+220
+428
+253
+sum-threshold
+sum-threshold
+0
+100
+100
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+483
+203
+655
+236
+g-compensation
+g-compensation
+0
+100
+30
+1
+1
+NIL
+HORIZONTAL
+
+MONITOR
+489
+389
+606
+434
+mean g advantage
+mean [resources] of people with [[pcolor] of patch-here = green] - mean [resources] of people with [[pcolor] of patch-here != green]
+2
+1
+11
+
 @#$#@#$#@
 ## WHAT IS IT?
 
@@ -875,8 +947,16 @@ In addition, people may take action to acquire the same improvements for reasons
 
 This model simulates the process by which a small initial number of wealthy health-seekers introducing an amenity (sanitation) to their neighbourhood leads to the widespread adoption of the amenity over time through status-seeking rather than health-directed action.
 
-?? Should the initial introduction of the amenity require a specific sum, rather than mean, resources?
-Should people who are converted to green seekers really be treated the same as health seekers?
+??? 
+Should the initial introduction of the amenity require a specific sum, rather than mean, resources?
+- if using mean resources and converted green seekers don't automatically spread the improvement to their neighbours, the improvement never spreads beyond the high-status patches
+- if using sum resources and converted green seekers don't automatically spread the improvement to their neighbours, the improvement does spread to all but the lowest status patches
+
+Should people who are converted to green seekers really be treated the same as health seekers? Maybe they would be happy with either a lower-status green patch or a higher-status non-green patch. (true now)
+- with this model, improvement does not spread beyond the high-status patches
+- but there are pockets of lower-status green patches. Why don't high-resources health/green seekers take over?
+
+Should living next to a green patch be worth something to green/health seekers?
 
 
 ## HOW IT WORKS
@@ -897,11 +977,13 @@ Health seekers are happy when they are living on an improved patch (indicated by
 
 Status seekers are initially happy when they are living on a patch with greater status than their own resources.
 
-If living on a green patch becomes associated with status (i.e., the mean resources of people living on green patches is more than "diff" greater than the mean resources of people living on non-green patches), then status seekers will also only be happy when living on an improved (green) patch.
+Status seekers who are converted to green seekers are happy when living on a patch where the status plus the compensation provided by being on a green patch (set by the g-compensation slider) is greater than their own resources.
+
+If living on a green patch becomes associated with status (i.e., the mean resources of people living on green patches is more than "diff" greater than the mean resources of people living on non-green patches), then status seekers will also get a status boost from living on an improved (green) patch. This boost is equivalent to the mean difference in status between people on green and non-green squares.
 
 *NEIGHBOURHOOD IMPROVEMENTS*
 
-The cost of implementing a health-directed improvemenet is set using the cost-threshold slider. If the mean resources of the health seekers within a 9-patch neighbourhood collectively is greater than the cost-threshold, the neighbourhood will be improved, i.e., all 9 patches will be coloured green.  
+The cost of implementing a health-directed improvemenet is set using the cost-threshold slider. If the mean resources of a cluster of contiguously located health-seekers is greater than the cost-threshold, the neighbourhood surrounding the cluster will be improved, i.e., all the patches comprising the cluster and each of their 9 neighbours will be coloured green.  
 
 Non-health seekers living on improved patches may come to appreciate the benefits of the improvement and convert to being health-seekers (**NB change to "green seekers"?) themselves. The probability of doing so, once exposed to a green improved square, is set by the conversion-chance slider.
 
@@ -914,6 +996,8 @@ Move order is set by resources, with people having the opportunity to find a new
 The patches available to each person (i.e., those within move-distance) are ranked according to the happiness requirements of the buyer. For status seekers, the patches are ranked by status. For health seekers, all improved (green) patches are ranked by status, ahead of unimproved patches, which are also ranked by status. If improvements become associated with status, status seekers will be treated as health seekers.
 
 A buyer finds a new patch to move to by checking the list of ranked available patches from most to least desirable until reaching one whose current owner has fewer resources than the buyer. The buyer and seller then swap patches. If a buyer does not find a patch whose owner they can outbid, the buyer will not move.
+
+After every person has had the opportunity to move, the happiness of each person is updated, and if a neighbourhood now has sufficient resources, any new improvements are made. The status of each patch is also updated.
 
 ## HOW TO USE IT
 
