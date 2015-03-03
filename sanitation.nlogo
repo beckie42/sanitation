@@ -18,6 +18,9 @@ people-own [
 
 patches-own [
   status
+  score
+  g-score
+  g-neighbours
   available?
   improved?
 ]
@@ -97,6 +100,11 @@ to update-patches
     let statusref [resources] of turtles-here
     let neighbours (turtles-on neighbors)
     set status (mean [resources] of neighbours)
+    set g-neighbours count neighbours with [pcolor = green]
+    set score 0
+    ifelse pcolor = green
+      [ set g-score 1 ]
+      [ set g-score 0 ]
   ]
 end
   
@@ -193,7 +201,7 @@ to update-people
           [ set correlation-g? False ]
         ]
       
-      ;;; check whether non-health-seekers on green patches convert to health-seekers  
+      ;;; check whether non-health-seekers on green patches convert to green-seekers  
       ask g
         [ if health-seeker? = False
           [ if random 100 < conversion-chance
@@ -252,16 +260,32 @@ to move-unhappy-people
   foreach unhappypeople [ ask ?
     ;;; people can move a maximum of move-distance from their current patch 
     [ let rankedpatchset patches with [distance ? <= move-distance]
-;      show ?
-;      show [self] of rankedpatchset
-      ;;; patches are ranked in descending order by status. However, if the moving person is a health seeker or there is a correlation between green and status, 
-      ;;; all green patches are first ranked by descending status, followed by non-green patches by descening status
-      if patchranking = "status"
-        [ ifelse health-seeker? or correlation-g?
-          [ set rankedpatches sort-by [ ([pcolor] of ?1 = green and [pcolor] of ?2 != green) or ([pcolor] of ?1 = [pcolor] of ?2 and [status] of ?1 > [status] of ?2) 
-            ] rankedpatchset ] 
-          [ set rankedpatches sort-on [(- status)] rankedpatchset ]
-          ]
+      
+    ;;; give each available patch a patch score based on the mover's preferences
+    
+    ;;; in general, patch score is status plus number of green neighbours plus a compensation score based on how much the mover cares about being on a green patch
+    ;;; for health-seekers, the green compensation is 100
+    ifelse health-seeker?
+      [ ask rankedpatchset [ set score 100 * g-score + (g-neighbours * 100 / 9) + status ] ]
+    
+    ;;; for green-seekers, the green compensation is set by the g-compensation slider
+      [ ifelse green-seeker? or correlation-g?
+        [ ask rankedpatchset [ set score g-compensation * g-score + (g-neighbours * g-compensation / 9) + status ] ]
+        
+        ;;; for others, green compensation is 0          
+        [ ask rankedpatchset [ set score status ] ]
+      ]
+      
+    ;;; available patches are sorted by patch score
+    set rankedpatches sort-on [(- score)] rankedpatchset
+    
+       
+;      if patchranking = "status"
+;        [ ifelse health-seeker? or correlation-g?
+;          [ set rankedpatches sort-by [ ([pcolor] of ?1 = green and [pcolor] of ?2 != green) or ([pcolor] of ?1 = [pcolor] of ?2 and [status] of ?1 > [status] of ?2) 
+;            ] rankedpatchset ] 
+;          [ set rankedpatches sort-on [(- status)] rankedpatchset ]
+;          ]
       
 ;      show rankedpatches
       let partner best-partner self rankedpatches
@@ -948,7 +972,7 @@ In addition, people may take action to acquire the same improvements for reasons
 This model simulates the process by which a small initial number of wealthy health-seekers introducing an amenity (sanitation) to their neighbourhood leads to the widespread adoption of the amenity over time through status-seeking rather than health-directed action.
 
 ??? 
-Should the initial introduction of the amenity require a specific sum, rather than mean, resources?
+Should the initial introduction of the amenity require a specific sum, rather than mean, resources? (added that option)
 - if using mean resources and converted green seekers don't automatically spread the improvement to their neighbours, the improvement never spreads beyond the high-status patches
 - if using sum resources and converted green seekers don't automatically spread the improvement to their neighbours, the improvement does spread to all but the lowest status patches
 
