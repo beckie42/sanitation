@@ -22,7 +22,8 @@ patches-own [
   g-score
   g-neighbours
   available?
-  improved?
+  hs-score
+  gs-score
 ]
 
 globals [
@@ -40,6 +41,7 @@ to setup
   setup-people-random
   update-patches
   update-people
+  update-patches
   reset-ticks
 end
 
@@ -105,6 +107,8 @@ to update-patches
     ifelse pcolor = green
       [ set g-score 1 ]
       [ set g-score 0 ]
+    set gs-score (g-compensation * g-score + (g-neighbours * g-compensation / 9) + status)
+    set hs-score (100 * g-score + (g-neighbours * 100 / 9) + status)
   ]
 end
   
@@ -271,37 +275,32 @@ to move-unhappy-people
   
   ;;; unhappy people move in descending order of resources
   set unhappypeople sort-on [(- resources)] unhappypeople                                                                   
-  foreach unhappypeople [ ask ?
-    ;;; people can move a maximum of move-distance from their current patch 
-    [ let rankedpatchset patches with [distance ? <= move-distance]
-      
-    ;;; give each available patch a patch score based on the mover's preferences
-    
-    ;;; in general, patch score is status plus number of green neighbours plus a compensation score based on how much the mover cares about being on a green patch
-    ;;; for health-seekers, the green compensation is 100
-    ifelse health-seeker?
-      [ ask rankedpatchset [ set score 100 * g-score + (g-neighbours * 100 / 9) + status ] ]
-    
-    ;;; for green-seekers, the green compensation is set by the g-compensation slider
-      [ ifelse green-seeker? or correlation-g?
-        [ ask rankedpatchset [ set score g-compensation * g-score + (g-neighbours * g-compensation / 9) + status ] ]
+  foreach unhappypeople 
+    [ ask ?
+      ;;; people can move a maximum of move-distance from their current patch 
+      [ let rankedpatchset patches with [distance ? <= move-distance]
         
-        ;;; for others, green compensation is 0          
-        [ ask rankedpatchset [ set score status ] ]
-      ]
+      ;;; available patches are sorted by the appropriate patch score
+      ifelse health-seeker?
+        [ set rankedpatches sort-on [(- hs-score)] rankedpatchset ]
       
-    ;;; available patches are sorted by patch score
-    set rankedpatches sort-on [(- score)] rankedpatchset
-    
+        [ ifelse green-seeker? or correlation-g?
+          [ set rankedpatches sort-on [(- gs-score)] rankedpatchset ]          
+          [ set rankedpatches sort-on [(- status)] rankedpatchset ]
+        ]
        
-;      if patchranking = "status"
-;        [ ifelse health-seeker? or correlation-g?
-;          [ set rankedpatches sort-by [ ([pcolor] of ?1 = green and [pcolor] of ?2 != green) or ([pcolor] of ?1 = [pcolor] of ?2 and [status] of ?1 > [status] of ?2) 
-;            ] rankedpatchset ] 
-;          [ set rankedpatches sort-on [(- status)] rankedpatchset ]
-;          ]
-      
-      foreach rankedpatches [ ask ? [ type self type score type g-score type g-neighbours show status ] ]
+         
+  ;      if patchranking = "status"
+  ;        [ ifelse health-seeker? or correlation-g?
+  ;          [ set rankedpatches sort-by [ ([pcolor] of ?1 = green and [pcolor] of ?2 != green) or ([pcolor] of ?1 = [pcolor] of ?2 and [status] of ?1 > [status] of ?2) 
+  ;            ] rankedpatchset ] 
+  ;          [ set rankedpatches sort-on [(- status)] rankedpatchset ]
+  ;          ]
+        
+      if health-seeker? or green-seeker? or correlation-g?
+        [ type self type " " type health-seeker? type green-seeker? show ""
+          show rankedpatches
+          foreach rankedpatches [ ask ? [ type self type " " type score type " " type g-score type " " type g-neighbours type " " show status ] ] ]
       let partner best-partner self rankedpatches
       
       if partner != nobody [
@@ -820,7 +819,7 @@ diff
 diff
 0
 10
-2
+5
 1
 1
 NIL
@@ -945,7 +944,7 @@ sum-threshold
 sum-threshold
 0
 100
-100
+41
 1
 1
 NIL
