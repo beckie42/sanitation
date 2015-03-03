@@ -132,15 +132,29 @@ to update-people
                 set checked? True ]
             ]
           let clusterset people with [clusterset? = True]
-;          if mean [resources] of clusterset > cost-threshold
-          if sum [resources] of clusterset > sum-threshold
-            [ ask clusterset
-              [ ask patch-here 
-                  [ set pcolor green ]
-                ask neighbors
-                  [ set pcolor green ] 
+          
+          if threshold-type = "cluster-mean"
+            [ if mean [resources] of clusterset > cost-threshold
+              [ ask clusterset
+                [ ask patch-here 
+                    [ set pcolor green ]
+                  ask neighbors
+                    [ set pcolor green ] 
+                ]
               ]
             ]
+            
+          if threshold-type = "cluster-sum"  
+            [ if sum [resources] of clusterset > sum-threshold
+              [ ask clusterset
+                [ ask patch-here 
+                    [ set pcolor green ]
+                  ask neighbors
+                    [ set pcolor green ] 
+                ]
+              ]
+            ]
+            
           ask clusterset [ set clusterset? False ]
         ]
     ]    
@@ -287,7 +301,7 @@ to move-unhappy-people
 ;          [ set rankedpatches sort-on [(- status)] rankedpatchset ]
 ;          ]
       
-;      show rankedpatches
+      foreach rankedpatches [ ask ? [ type self type score type g-score type g-neighbours show status ] ]
       let partner best-partner self rankedpatches
       
       if partner != nobody [
@@ -385,7 +399,7 @@ BUTTON
 52
 NIL
 go
-T
+NIL
 1
 T
 OBSERVER
@@ -634,10 +648,10 @@ max [resources] of turtles
 13
 
 SLIDER
-482
-119
-654
-152
+473
+138
+645
+171
 move-distance
 move-distance
 0
@@ -668,10 +682,10 @@ PENS
 "status" 1.0 1 -7500403 true "" "histogram [status-desire] of turtles"
 
 SWITCH
-494
-33
-638
-66
+485
+10
+629
+43
 move-happy?
 move-happy?
 0
@@ -783,10 +797,10 @@ NIL
 HORIZONTAL
 
 SLIDER
-482
-74
-654
-107
+473
+93
+645
+126
 %highstatus
 %highstatus
 0
@@ -871,10 +885,10 @@ NIL
 HORIZONTAL
 
 SLIDER
-482
-157
-654
-190
+473
+176
+645
+209
 distpenalty
 distpenalty
 0
@@ -938,10 +952,10 @@ NIL
 HORIZONTAL
 
 SLIDER
-483
-203
-655
-236
+474
+222
+646
+255
 g-compensation
 g-compensation
 0
@@ -962,6 +976,16 @@ mean [resources] of people with [[pcolor] of patch-here = green] - mean [resourc
 2
 1
 11
+
+CHOOSER
+485
+47
+623
+92
+threshold-type
+threshold-type
+"cluster-sum" "cluster-mean"
+0
 
 @#$#@#$#@
 ## WHAT IS IT?
