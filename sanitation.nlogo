@@ -219,8 +219,12 @@ to update-people
           [ set correlation-g? False ]
         ]
       
-      ;;; check whether non-health-seekers on green patches convert to green-seekers  
-      ask g
+      ;;; check whether non-health-seekers on or next to green patches convert to green-seekers  
+      let g-adj-patches (patch-set (patches with [pcolor = green]) ([neighbors] of patches with [pcolor = green]))
+      show g-adj-patches
+      let g-adj turtles-on g-adj-patches
+      show g-adj
+      ask g-adj
         [ if health-seeker? = False
           [ if random 100 < conversion-chance
             [ set green-seeker? True 
@@ -258,7 +262,7 @@ to-report match-neighbours [thisperson similarpeople]
   report matchingneighbours
 end
 
-;;; people who are unhappy move to the best square they can afford (i.e., outbid for)
+;;; people who are unhappy move to the best patch they can afford (i.e., outbid for)
 to move-unhappy-people
   ;;; only unhappy people move and have available patches
   set moves 0
@@ -297,10 +301,10 @@ to move-unhappy-people
   ;          [ set rankedpatches sort-on [(- status)] rankedpatchset ]
   ;          ]
         
-      if health-seeker? or green-seeker? or correlation-g?
-        [ type self type " " type health-seeker? type green-seeker? show ""
-          show rankedpatches
-          foreach rankedpatches [ ask ? [ type self type " " type score type " " type g-score type " " type g-neighbours type " " show status ] ] ]
+;      if health-seeker? or green-seeker? or correlation-g?
+;        [ type self type " " type health-seeker? type green-seeker? show ""
+;          show rankedpatches
+;          foreach rankedpatches [ ask ? [ type self type " " type score type " " type g-score type " " type g-neighbours type " " show status ] ] ]
       let partner best-partner self rankedpatches
       
       if partner != nobody [
@@ -398,7 +402,7 @@ BUTTON
 52
 NIL
 go
-NIL
+T
 1
 T
 OBSERVER
@@ -944,7 +948,7 @@ sum-threshold
 sum-threshold
 0
 100
-41
+20
 1
 1
 NIL
