@@ -221,9 +221,7 @@ to update-people
       
       ;;; check whether non-health-seekers on or next to green patches convert to green-seekers  
       let g-adj-patches (patch-set (patches with [pcolor = green]) ([neighbors] of patches with [pcolor = green]))
-      show g-adj-patches
       let g-adj turtles-on g-adj-patches
-      show g-adj
       ask g-adj
         [ if health-seeker? = False
           [ if random 100 < conversion-chance
@@ -1007,7 +1005,9 @@ Should people who are converted to green seekers really be treated the same as h
 - with this model, improvement does not spread beyond the high-status patches
 - but there are pockets of lower-status green patches. Why don't high-resources health/green seekers take over?
 
-Should living next to a green patch be worth something to green/health seekers?
+Should living next to a green patch be worth something to green/health seekers? (added)
+
+Should people who are already happy still try to move to a better patch?
 
 
 ## HOW IT WORKS
@@ -1036,7 +1036,7 @@ If living on a green patch becomes associated with status (i.e., the mean resour
 
 The cost of implementing a health-directed improvemenet is set using the cost-threshold slider. If the mean resources of a cluster of contiguously located health-seekers is greater than the cost-threshold, the neighbourhood surrounding the cluster will be improved, i.e., all the patches comprising the cluster and each of their 9 neighbours will be coloured green.  
 
-Non-health seekers living on improved patches may come to appreciate the benefits of the improvement and convert to being health-seekers (**NB change to "green seekers"?) themselves. The probability of doing so, once exposed to a green improved square, is set by the conversion-chance slider.
+Non-health seekers living on or next to improved patches may come to appreciate the benefits of the improvement and convert to being green seekers themselves. The probability of doing so, once exposed to a green improved square, is set by the conversion-chance slider.
 
 *MOVING*
 
@@ -1044,7 +1044,7 @@ People who are unhappy will try to move to a patch on which they will be happy. 
 
 Move order is set by resources, with people having the opportunity to find a new patch in order of decreasing resources. No person can move more than the distance set by the "move-distance" slider.
 
-The patches available to each person (i.e., those within move-distance) are ranked according to the happiness requirements of the buyer. For status seekers, the patches are ranked by status. For health seekers, all improved (green) patches are ranked by status, ahead of unimproved patches, which are also ranked by status. If improvements become associated with status, status seekers will be treated as health seekers.
+The patches available to each person (i.e., those within move-distance) are ranked by desirability score, which is calculated differently, depending on the happiness requirements of the buyer. For status seekers, the score is equal to patch status. For health seekers, the score is 100 for green scores or 0 for non-green, plus 100/9 for each green neighbour, plus status. For green seekers, the score is the green compensation set by the g-compensation slider for green patches or 0 for non-green, plus g-compensation/9 for each green neighbour, plus status. If improvements become associated with status, status seekers will be treated as green seekers.
 
 A buyer finds a new patch to move to by checking the list of ranked available patches from most to least desirable until reaching one whose current owner has fewer resources than the buyer. The buyer and seller then swap patches. If a buyer does not find a patch whose owner they can outbid, the buyer will not move.
 
