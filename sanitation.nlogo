@@ -264,20 +264,19 @@ end
 to move-unhappy-people
   ;;; only unhappy people move and have available patches
   set moves 0
-  let unhappypeople people with [happy? = False]
-  ask unhappypeople [ ask patch-here [ set available? True ] ]
+  let movingpeople []
+  ifelse move-happy?
+    [ set movingpeople people ]
+    [ set movingpeople people with [happy? = False] ]
+    
+  ask movingpeople [ ask patch-here [ set available? True ] ]
   let availablepatches []
-  
-;  ifelse move-happy? 
-;    [ set availablepatches patches ]
-;    [ set availablepatches patches with [available? = True] ]
-;  show [self] of availablepatches
   
   let rankedpatches []
   
-  ;;; unhappy people move in descending order of resources
-  set unhappypeople sort-on [(- resources)] unhappypeople                                                                   
-  foreach unhappypeople 
+  ;;; moving people move in descending order of resources
+  set movingpeople sort-on [(- resources)] movingpeople                                                                   
+  foreach movingpeople 
     [ ask ?
       ;;; people can move a maximum of move-distance from their current patch 
       [ let rankedpatchset patches with [distance ? <= move-distance]
@@ -946,7 +945,7 @@ sum-threshold
 sum-threshold
 0
 100
-20
+40
 1
 1
 NIL
@@ -1007,7 +1006,7 @@ Should people who are converted to green seekers really be treated the same as h
 
 Should living next to a green patch be worth something to green/health seekers? (added)
 
-Should people who are already happy still try to move to a better patch?
+Should people who are already happy still try to move to a better patch? (added option using move-happy? slider)
 
 
 ## HOW IT WORKS
